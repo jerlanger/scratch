@@ -5,3 +5,7 @@ secret.py
 # ignore local folder
 
 /local/*
+
+# .ipyb checkpoints
+
+.ipynb_checkpoints
