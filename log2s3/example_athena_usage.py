@@ -1,11 +1,15 @@
 from query_logs import athena
 
-save_location = "/local/file/location/example/"
+# Variables for ETL #
+
+save_location = "/local/folder/location/example/"
 s3_bucket = "dsa-joe"
-s3_bucket_path = "s3_folder/location/example"
+s3_bucket_path = "s3_folder/example_location"
 rs_table = "dsa.example_table"
 
 query = """Athena Query Here"""
+
+# ETL Run #
 
 instance = athena("job_name")
 
