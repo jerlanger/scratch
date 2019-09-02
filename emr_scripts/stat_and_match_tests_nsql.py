@@ -99,12 +99,10 @@ class seid(object):
 
         spark.catalog.setCurrentDatabase("default")
 
-        # Create client temp table #
+        # Create temp tables #
         
         client = spark.read.csv(self.client_table) \
             .withColumnRenamed("_c0","hem")
-
-        # Generate lidid temp file #
 
         lidid_q = """SELECT hash as hem FROM auto_dmps.all_features_mapping_pair 
                      WHERE cookie RLIKE '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' 
@@ -112,19 +110,15 @@ class seid(object):
         
         lidid = spark.sql(lidid_q)
 
-        # Create maid temp table #
-
         maid_q = """SELECT piiidentifier as hem FROM auto_sellable.sellable_pair 
                     WHERE cookie_domain_p IN ('aaid','idfa') 
                     AND date_p = '%s' GROUP BY 1""" % (self.max_sellable_date)
         
         maid = spark.sql(maid_q)
 
-        # Generate boolean file#
+        # Generate match file #
 
         match_floc = "%s/match_test/standard_match/lidid_%s_maid_%s/" % (self.base_floc, self.max_agg_date, self.max_sellable_date)
-
-        spark.sql(boolean_q).write.parquet(boolean_floc)
         
         client \
             .join(lidid,client.hem == lidid.hem, "left") \
@@ -134,8 +128,8 @@ class seid(object):
             .write \
             .parquet(match_floc)                     
 
-fullcontact = seid("fullcontact","seid_55")
+#fullcontact = seid("fullcontact","seid_55")
 
-fullcontact.stat_test()
-fullcontact.match_test()
+#fullcontact.stat_test()
+#fullcontact.match_test()
  
