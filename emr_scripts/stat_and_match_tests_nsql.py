@@ -24,8 +24,8 @@ class seid(object):
                                  .collect()[0][0]
 
     def stat_test(self):
-        #from pyspark.sql import SparkSession
-        #from pyspark.sql.functions import countDistinct, col, when, isnull, count
+        from pyspark.sql import SparkSession
+        from pyspark.sql.functions import countDistinct, col, when, isnull, count
 
         spark = SparkSession.builder \
             .appName("stat_test") \
@@ -36,8 +36,7 @@ class seid(object):
 
         spark.catalog.setCurrentDatabase("default")
 
-        # Create stat tables #
-        
+        # Create stat tables #    
         
         client = spark.read.csv(self.client_table) \
             .withColumnRenamed("_c0","hem")
@@ -66,7 +65,7 @@ class seid(object):
         
         mh_floc = "%s/stat_test/agg/matched_hashes/%s/" % (self.base_floc, self.max_sellable_date)
 
-        client.join(sellable_hash,client_clean.hem == sellable_hash.hem, "left") \
+        client.join(sellable_hash,client.hem == sellable_hash.hem, "left") \
             .agg(countDistinct(sellable_hash.hem).alias("matched_hem"), \
                  countDistinct(when(col("region_p") == "US", sellable_hash.hem)).alias("US_matched_hem")) \
             .coalesce(1) \
@@ -79,7 +78,7 @@ class seid(object):
         sp_floc = "%s/stat_test/agg/sellable_pair_breakdown/%s/" % (self.base_floc, self.max_sellable_date)
 
         client \
-            .join(sellable_hash,client_clean.hem == sellable_hash.hem, "inner") \
+            .join(sellable_hash,client.hem == sellable_hash.hem, "inner") \
             .groupBy(col("cookie_domain_p").alias("cDomain")) \
             .agg(count(col("cookie")).alias("matched_pairs"), \
                  count(when(col("region_p") == "US", col("cookie"))).alias("US_matched_pairs")) \
@@ -89,6 +88,7 @@ class seid(object):
 
     def match_test(self):
         from pyspark.sql import SparkSession
+        from pyspark.sql.functions import distinct, isnull
 
         spark = SparkSession.builder \
             .appName("match_test") \
@@ -99,48 +99,43 @@ class seid(object):
 
         spark.catalog.setCurrentDatabase("default")
 
+        # Create client temp table #
+        
+        client = spark.read.csv(self.client_table) \
+            .withColumnRenamed("_c0","hem")
+
         # Generate lidid temp file #
 
         lidid_q = """SELECT hash as hem FROM auto_dmps.all_features_mapping_pair 
                      WHERE cookie RLIKE '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' 
                      AND date_p = '%s' GROUP BY hash"""  % (self.max_agg_date)
-
-        lidid_floc = "%s/temp/lidid_%s/" % (self.base_floc, self.max_agg_date)
-
-        spark.sql(lidid_q).coalesce(10000).write.parquet(lidid_floc, mode="overwrite")
-
-        # Load lidid temp file as temp table #
-
-        spark.read.parquet(lidid_floc).createOrReplaceTempView("lidid")
+        
+        lidid = spark.sql(lidid_q)
 
         # Create maid temp table #
 
         maid_q = """SELECT piiidentifier as hem FROM auto_sellable.sellable_pair 
                     WHERE cookie_domain_p IN ('aaid','idfa') 
                     AND date_p = '%s' GROUP BY 1""" % (self.max_sellable_date)
-
-        spark.sql(maid_q).createOrReplaceTempView("maid")
-
-        # Create client temp table #
-
-        client_q = """SELECT REPLACE(hem,'"') hem 
-                      FROM %s""" % (self.client_table)
-
-        spark.sql(client_q).createOrReplaceTempView("client")
+        
+        maid = spark.sql(maid_q)
 
         # Generate boolean file#
 
-        boolean_q = """SELECT a.hem, b.hem IS NOT NULL has_lidid, c.hem IS NOT NULL has_maid 
-                     FROM client a 
-                     LEFT JOIN lidid b ON a.hem = b.hem 
-                     LEFT JOIN maid c ON a.hem = c.hem 
-                     GROUP BY 1,2,3"""
-
-        boolean_floc = "s3n://ds-emr-storage/jira/seid/%s/match_test/lidid_w_booleans/" % (ticket)
+        match_floc = "%s/match_test/standard_match/lidid_%s_maid_%s/" % (self.base_floc, self.max_agg_date, self.max_sellable_date)
 
         spark.sql(boolean_q).write.parquet(boolean_floc)
+        
+        client \
+            .join(lidid,client.hem == lidid.hem, "left") \
+            .join(maid,client.hem == maid.hem, "left") \
+            .select(client.hem, lidid.hem.isNotNull().alias("has_lidid"), maid.hem.isNotNull().alias("has_maid")) \
+            .distinct() \
+            .write \
+            .parquet(match_floc)                     
 
 fullcontact = seid("fullcontact","seid_55")
 
 fullcontact.stat_test()
+fullcontact.match_test()
  
