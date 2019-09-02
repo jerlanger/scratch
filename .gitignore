@@ -1,3 +1,7 @@
 # ignore secret.py
 
 secret.py
+
+# ignore local folder
+
+/local/*
