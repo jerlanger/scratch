@@ -24,7 +24,7 @@ def email_alert(sql):
     conn.close()
     
     sender = 'sender_email@example.com'
-    subject = 'Stalled Template Alert!'
+    subject = 'Example Alert!'
     ccaddr = ['cc1@example.com','cc2@example.com']
     msg = MIMEMultipart()
     msg['From'] = sender
@@ -63,11 +63,12 @@ def email_alert(sql):
         else:
             stalled = 'declined significantly'
         
-        intro = """ Hi there %s, <br> <br> A template you are the PDM for &mdash; %s (id: %s) &mdash; %s yesterday. Please check it out. <br>""" %(am_name,template_name,template_id,stalled)
-        details = """ <br> <u>Details</u> <br> <br> <b>Media Group Name</b>: %s (id: %s) <br> <b>Publisher Name</b>: %s (id: %s) <br> <b>Template Name</b>: %s (id: %s) <br> <b>Decisions Yesterday</b>: %s <br> <b>Decisions Same Day Last Week</b>: %s <br> <b>Total Decisions This Week</b>: %s <br> <b>Total Decisions Last Week</b>: %s <br>""" %(media_group_name,media_group_id,publisher_name,publisher_id,template_name,template_id,yesterday_decisions,previous_day_of_week_decisions,this_week_decisions,previous_week_decisions)
-        links = """ <br> <a href="https://lfm.liveintent.com/publisher/details/?pid=%s#tab=templates">LFM Link</a> &#9474; <a href="https://uslicer.iponweb.com/liveintent/UI/Reports/UUID?order_by=granularity_day&order_direction=ASC&chart_column=decisions&granularity=day&normalization=value&parent_match=equals&parent_key=template_id&parent_value=%s&category=granularity_day&start_date=%s&end_date=%s&id_list=total">uSlicer Link</a>""" %(pub_lfx_id,template_id,slicer_start,slicer_end)
+        intro = """ Hi there %s, <br> <br> A template you are the PDM for &mdash; %s (id: %s) &mdash; %s yesterday. Please check it out. <br>""" \
+        % (am_name,template_name,template_id,stalled)
+        details = """ <br> <u>Details</u> <br> <br> <b>Media Group Name</b>: %s (id: %s) <br> <b>Publisher Name</b>: %s (id: %s) <br> <b>Template Name</b>: %s (id: %s) <br> <b>Decisions Yesterday</b>: %s <br> <b>Decisions Same Day Last Week</b>: %s <br> <b>Total Decisions This Week</b>: %s <br> <b>Total Decisions Last Week</b>: %s <br>""" \
+        %(media_group_name,media_group_id,publisher_name,publisher_id,template_name,template_id,yesterday_decisions,previous_day_of_week_decisions,this_week_decisions,previous_week_decisions)
         
-        body = intro + details + links
+        body = intro + details
         
         if msg.has_key('to'):
             msg.replace_header('to',email)
@@ -78,7 +79,6 @@ def email_alert(sql):
         content = msg.as_string()
             
         smtpObj.sendmail(sender, toaddr, content)
-        print 'email sent to %s' %email
 
     smtpObj.quit()
 
