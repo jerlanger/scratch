@@ -9,3 +9,4 @@ secret.py
 # .ipyb checkpoints
 
 .ipynb_checkpoints
+.DS_Store
