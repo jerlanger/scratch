@@ -38,14 +38,14 @@ class seid(object):
 
         # Create stat tables #    
         
-        client = spark.read.csv(self.client_table) \
+        client = spark.read.csv(self.client_file) \
             .withColumnRenamed("_c0","hem")
         
         sell_hash_q = """SELECT piiidentifier as hem, region_p, cookie_domain_p, cookie 
                          FROM auto_sellable.sellable_pair 
                          WHERE date_p = '%s' GROUP BY 1,2,3,4""" % (self.max_sellable_date)
         
-        sellable_hash = spark.sql(sell_hash_q)         
+        sellable_hash = spark.sql(sell_hash_q).persist()
 
         # Quality check #
 
@@ -88,7 +88,7 @@ class seid(object):
 
     def match_test(self):
         from pyspark.sql import SparkSession
-        from pyspark.sql.functions import distinct, isnull
+        from pyspark.sql.functions import isnull
 
         spark = SparkSession.builder \
             .appName("match_test") \
@@ -101,7 +101,7 @@ class seid(object):
 
         # Create temp tables #
         
-        client = spark.read.csv(self.client_table) \
+        client = spark.read.csv(self.client_file) \
             .withColumnRenamed("_c0","hem")
 
         lidid_q = """SELECT hash as hem FROM auto_dmps.all_features_mapping_pair 
@@ -118,7 +118,8 @@ class seid(object):
 
         # Generate match file #
 
-        match_floc = "%s/match_test/standard_match/lidid_%s_maid_%s/" % (self.base_floc, self.max_agg_date, self.max_sellable_date)
+        match_floc = "%s/match_test/standard_match/lidid_%s_maid_%s/" \
+        % (self.base_floc, self.max_agg_date, self.max_sellable_date)
         
         client \
             .join(lidid,client.hem == lidid.hem, "left") \
