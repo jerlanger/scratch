@@ -25,7 +25,7 @@ class seid(object):
 
     def stat_test(self):
         from pyspark.sql import SparkSession
-        from pyspark.sql.functions import countDistinct, col, when, isnull, count
+        from pyspark.sql.functions import countDistinct, col, when, isnull, count, sum
 
         spark = SparkSession.builder \
             .appName("stat_test") \
@@ -41,9 +41,13 @@ class seid(object):
         client = spark.read.csv(self.client_file) \
             .withColumnRenamed("_c0","hem")
         
-        sell_hash_q = """SELECT piiidentifier as hem, region_p, cookie_domain_p, cookie 
-                         FROM auto_sellable.sellable_pair 
-                         WHERE date_p = '%s' GROUP BY 1,2,3,4""" % (self.max_sellable_date)
+#        sell_hash_q = """SELECT piiidentifier as hem, region_p, cookie_domain_p, cookie 
+#                         FROM auto_sellable.sellable_pair 
+#                         WHERE date_p = '%s' GROUP BY 1,2,3,4""" % (self.max_sellable_date)
+        sell_hash_q = """SELECT piiidentifier as hem, cookie_domain_p as cDomain, COUNT(*) pairs, 
+                        COUNT(CASE WHEN region_p = 'US' THEN region_p END) us_pairs 
+                        FROM auto_sellable.sellable_pair 
+                        WHERE date_p = '%s' GROUP BY 1,2""" % (self.max_sellable_date)
         
         sellable_hash = spark.sql(sell_hash_q).persist()
 
@@ -65,23 +69,38 @@ class seid(object):
         
         mh_floc = "%s/stat_test/agg/matched_hashes/%s/" % (self.base_floc, self.max_sellable_date)
 
-        client.join(sellable_hash,client.hem == sellable_hash.hem, "left") \
+        #client.join(sellable_hash,client.hem == sellable_hash.hem, "inner") \
+        #    .agg(countDistinct(sellable_hash.hem).alias("matched_hem"), \
+        #         countDistinct(when(col("region_p") == "US", sellable_hash.hem)).alias("US_matched_hem")) \
+        #    .coalesce(1) \
+        #    .write \
+        #    .csv(mh_floc, header=True, mode="overwrite")
+        
+        sellable_hash.join(client,sellable_hash.hem == client.hem, "inner") \
             .agg(countDistinct(sellable_hash.hem).alias("matched_hem"), \
-                 countDistinct(when(col("region_p") == "US", sellable_hash.hem)).alias("US_matched_hem")) \
+                 countDistinct(when(sellable_hash.us_pairs > 0, sellable_hash.hem)).alias("US_matched_hem")) \
             .coalesce(1) \
             .write \
             .csv(mh_floc, header=True, mode="overwrite")
-                 
+
 
         # Sellable pair breakdown #
         
         sp_floc = "%s/stat_test/agg/sellable_pair_breakdown/%s/" % (self.base_floc, self.max_sellable_date)
 
-        client \
-            .join(sellable_hash,client.hem == sellable_hash.hem, "inner") \
-            .groupBy(col("cookie_domain_p").alias("cDomain")) \
-            .agg(count(col("cookie")).alias("matched_pairs"), \
-                 count(when(col("region_p") == "US", col("cookie"))).alias("US_matched_pairs")) \
+        #client \
+        #    .join(sellable_hash,client.hem == sellable_hash.hem, "inner") \
+        #    .groupBy(col("cookie_domain_p").alias("cDomain")) \
+        #    .agg(count(col("cookie")).alias("matched_pairs"), \
+        #         count(when(col("region_p") == "US", col("cookie"))).alias("US_matched_pairs")) \
+        #    .coalesce(1) \
+        #    .write \
+        #    .csv(sp_floc, header=True, mode="overwrite")
+        
+        sellable_hash.join(client,sellable_hash.hem == client.hem, "inner") \
+            .groupBy(col("cDomain")) \
+            .agg(sum("pairs").alias("matched_pairs"), \
+                 sum("us_pairs").alias("US_matched_pairs")) \
             .coalesce(1) \
             .write \
             .csv(sp_floc, header=True, mode="overwrite")
