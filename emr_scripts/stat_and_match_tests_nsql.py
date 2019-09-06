@@ -148,8 +148,5 @@ class seid(object):
             .select(client.hem, lidid.hem.isNotNull().alias("has_lidid"), maid.hem.isNotNull().alias("has_maid")) \
             .distinct() \
             .write \
-            .parquet(match_floc)                     
-
-pulsepoint = seid("pulsepoint","seid_117")
-pulsepoint.match_test()
+            .parquet(match_floc)
  
