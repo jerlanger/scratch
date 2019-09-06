@@ -49,7 +49,7 @@ class seid(object):
                         FROM auto_sellable.sellable_pair 
                         WHERE date_p = '%s' GROUP BY 1,2""" % (self.max_sellable_date)
         
-        sellable_hash = spark.sql(sell_hash_q).persist()
+        sellable_hash = spark.sql(sell_hash_q).cache()
 
         # Quality check #
 
@@ -104,6 +104,8 @@ class seid(object):
             .coalesce(1) \
             .write \
             .csv(sp_floc, header=True, mode="overwrite")
+        
+        sellable_hash.uncache()
 
     def match_test(self):
         from pyspark.sql import SparkSession
@@ -148,8 +150,6 @@ class seid(object):
             .write \
             .parquet(match_floc)                     
 
-#fullcontact = seid("fullcontact","seid_55")
-
-#fullcontact.stat_test()
-#fullcontact.match_test()
+pulsepoint = seid("pulsepoint","seid_117")
+pulsepoint.match_test()
  
