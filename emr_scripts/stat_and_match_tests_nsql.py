@@ -105,7 +105,7 @@ class seid(object):
             .write \
             .csv(sp_floc, header=True, mode="overwrite")
         
-        sellable_hash.uncache()
+        sellable_hash.unpersist()
 
     def match_test(self):
         from pyspark.sql import SparkSession
