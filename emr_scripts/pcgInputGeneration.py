@@ -1,18 +1,14 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
 def pcg(app,startDate,endDate=None): 
     from pyspark.sql import SparkSession
     from pyspark.sql.functions import col
     from datetime import date, timedelta, datetime
     
-    spark = SparkSession.builder     .appName("pcgCookieGeneration")     .config("hive.metastore.client.factory.class",
+    spark = SparkSession.builder \
+        .appName("pcgCookieGeneration") \
+        .config("hive.metastore.client.factory.class",
                     "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory") \
-    .enableHiveSupport() \
-    .getOrCreate()
+        .enableHiveSupport() \
+        .getOrCreate()
     
     spark.catalog.setCurrentDatabase("default")
     
@@ -28,14 +24,19 @@ def pcg(app,startDate,endDate=None):
     s3Paths = []    
 
     delta = end - start
-
     for i in range(delta.days + 1):
         day = (start + timedelta(days=i)).strftime('%Y/%m/%d/*/')
         s3Paths.append(baseS3Loc+day)
     
-    snowplow = spark.read.format("csv").option("header","false")                 .option("delimiter","\t")                 .load(s3Paths)
-    
-    snowplowReduce = snowplow.filter(col("_c0") == app)     .select("_c0","_c6","_c8")     .withColumnRenamed("_c0","app_id")     .withColumnRenamed("_c6","domain_user_id")     .withColumnRenamed("_c8","lidid")     .cache()
+    snowplowReduce = spark.read.format("csv").option("header","false") \
+                .option("delimiter","\t") \
+                .load(s3Paths) \
+                .filter(col("_c0") == app) \
+                .select("_c0","_c6","_c8") \
+                .withColumnRenamed("_c0","app_id") \
+                .withColumnRenamed("_c6","domain_user_id") \
+                .withColumnRenamed("_c8","lidid") \
+                .cache()
     
     lididCookies = snowplowReduce.filter(col("lidid") <> "null").select("lidid")
     fpcCookies = snowplowReduce.filter(col("domain_user_id") <> "null").select("domain_user_id")
@@ -48,11 +49,12 @@ def pcg(app,startDate,endDate=None):
 
     allHem = spark.sql(hemQuery)
     
-    pcgHem = allHem.join(pcgCookies,allHem.cookie == pcgCookies.cookie)                         .select(allHem.hem)                         .distinct()
+    pcgHem = allHem.join(pcgCookies,allHem.cookie == pcgCookies.cookie) \
+                        .select(allHem.hem) \
+                        .distinct()
     
     pcgHemWrite = "s3n://ds-emr-storage/pcg_files/%s/%s_to_%s/" % (app, startDate, endDate)
     
     pcgHem.write.csv(pcgHemWrite, sep="\t", mode="overwrite")
     
     snowplowReduce.unpersist()
-
