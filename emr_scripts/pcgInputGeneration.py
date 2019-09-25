@@ -1,4 +1,7 @@
-def pcg(app,startDate=None,endDate=None): 
+def pcg(app,startDate=None,endDate=None):
+#    import findspark
+#    findspark.init()
+    
     from pyspark.sql import SparkSession
     from pyspark.sql.functions import col, lit
     from pyspark.sql.types import StringType
@@ -43,8 +46,8 @@ def pcg(app,startDate=None,endDate=None):
                 .withColumnRenamed("_c8","lidid") \
                 .cache()
     
-    lididCookies = snowplowReduce.filter(col("lidid") <> "null").select("lidid")
-    fpcCookies = snowplowReduce.filter(col("domain_user_id") <> "null").select("domain_user_id")
+    lididCookies = snowplowReduce.filter(col("lidid") != "null").select("lidid")
+    fpcCookies = snowplowReduce.filter(col("domain_user_id") != "null").select("domain_user_id")
     
     pcgCookies = lididCookies.union(fpcCookies).withColumnRenamed("lidid","cookie").distinct()
 
