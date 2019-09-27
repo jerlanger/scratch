@@ -1,0 +1,32 @@
+[
+   {
+      "Name":"LiveIntent shell installer",
+      "ScriptBootstrapAction":{
+         "Path":"s3://us-config-mojn/emr/add-liveintent-shell"
+      }
+   },
+   {
+      "Name":"Idle cluster reaper",
+      "ScriptBootstrapAction":{
+         "Path":"s3://us-config-mojn/emr/idle_timeout.sh"
+      }
+   },
+   {
+      "Name":"Prometheus export start",
+      "ScriptBootstrapAction":{
+         "Path":"s3://us-config-mojn/emr/emr_bootstrap_node_exporter.sh"
+      }
+   },
+   {
+      "Name":"Additional AWS Credential Profiles",
+      "ScriptBootstrapAction":{
+         "Path":"s3://us-config-mojn/emr/add-profile-configuration"
+      }
+   },
+   {
+     "Name":"PIG Bootstrap",
+     "ScriptBootstrapAction":{
+        "Path":"s3://ds-emr-storage/step_scripts/upload_pcg_scripts.sh"
+     }
+   }
+]

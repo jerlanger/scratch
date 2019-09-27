@@ -1,0 +1,14 @@
+[
+   {
+      "Name":"Spark"
+   },
+   {
+      "Name":"Hadoop"
+   },
+   {
+      "Name":"Hive"
+   },
+   {
+      "Name":"JupyterHub"
+   }
+]

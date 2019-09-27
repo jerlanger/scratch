@@ -52,8 +52,9 @@ def pcg(app,startDate=None,endDate=None):
     pcgCookies = lididCookies.union(fpcCookies).withColumnRenamed("lidid","cookie").distinct()
 
     hemQuery = """SELECT hash as hem, cookie
-            FROM auto_dmps.all_features_mapping_pair 
-            WHERE date_p = '%s' GROUP BY 1,2""" % (graphMaxDate)
+            FROM auto_dmps.all_features_mapping_pair
+            WHERE date_p = '%s'
+            GROUP BY 1,2""" % (graphMaxDate)
 
     allHem = spark.sql(hemQuery)
     
