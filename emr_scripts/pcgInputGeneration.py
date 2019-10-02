@@ -1,11 +1,19 @@
-def pcg(app,startDate=None,endDate=None):
-#    import findspark
-#    findspark.init()
+def pcg(advID,clientBucket,startDate=None,endDate=None):
+    #import findspark
+    #findspark.init()
     
     from pyspark.sql import SparkSession
     from pyspark.sql.functions import col, lit
     from pyspark.sql.types import StringType
     from datetime import date, timedelta, datetime
+    import boto3
+    from botocore.client import ClientError
+    import sys
+    
+    try:
+        boto3.client('s3').head_bucket(Bucket=clientBucket)
+    except ClientError:
+        sys.exit("output bucket %s does not exist in this account" %(clientBucket))
     
     spark = SparkSession.builder \
         .appName("pcgCookieGeneration") \
@@ -15,7 +23,8 @@ def pcg(app,startDate=None,endDate=None):
         .getOrCreate()
     
     spark.catalog.setCurrentDatabase("default")
-    spark._jsc.hadoopConfiguration().set("mapreduce.fileoutputcommitter.marksuccessfuljobs","false")
+    #spark._jsc.hadoopConfiguration().set("mapreduce.fileoutputcommitter.marksuccessfuljobs","false")
+
     
     graphMaxDate = spark.sql("""SELECT MAX(date_p) FROM auto_dmps.all_features_mapping_pair""").collect()[0][0]
     
@@ -39,9 +48,9 @@ def pcg(app,startDate=None,endDate=None):
     snowplowReduce = spark.read.format("csv").option("header","false") \
                 .option("delimiter","\t") \
                 .load(s3Paths) \
-                .filter(col("_c0") == app) \
-                .select("_c0","_c6","_c8") \
-                .withColumnRenamed("_c0","app_id") \
+                .filter(col("_c23") == advID) \
+                .select("_c23","_c6","_c8") \
+                .withColumnRenamed("_c23","adv_id") \
                 .withColumnRenamed("_c6","domain_user_id") \
                 .withColumnRenamed("_c8","lidid") \
                 .cache()
@@ -60,11 +69,9 @@ def pcg(app,startDate=None,endDate=None):
     
     pcgHem = allHem.join(pcgCookies,allHem.cookie == pcgCookies.cookie) \
                         .select(allHem.hem) \
-                        .distinct() \
-                        .withColumn("dummyCol1",lit(None).cast(StringType())) \
-                        .withColumn("dummyCol2",lit(None).cast(StringType()))
+                        .distinct()
     
-    pcgHemWrite = "s3n://ds-emr-storage/pcg_files/%s/%s_to_%s/" % (app, startDate, endDate)
+    pcgHemWrite = "s3n://%s/deliverable-hash-filter/%s/" % (clientBucket, endDate)
     
     pcgHem.write.csv(pcgHemWrite, sep="\t", mode="overwrite", compression="gzip", header=False)
     

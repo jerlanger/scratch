@@ -24,9 +24,9 @@
       }
    },
    {
-     "Name":"PIG Bootstrap",
+     "Name":"PIG setup",
      "ScriptBootstrapAction":{
-        "Path":"s3://ds-emr-storage/step_scripts/upload_pcg_scripts.sh"
+        "Path":"s3://ds-emr-storage/bootstrap_scripts/pig_setup.sh"
      }
    }
 ]

@@ -1,8 +1,11 @@
 #!/bin/bash
 
-sudo pip install findspark
-sudo pip install pandas
-sudo pip install numpy
+sudo pip install -U \
+	findspark \
+	 pandas \
+	 numpy \
+	 awscli \
+	 boto3
 
 sudo yum install -y tmux
 
