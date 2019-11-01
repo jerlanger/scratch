@@ -29,6 +29,4 @@ else:
     
 pig.pcg(advID=adv,clientBucket=bucket,startDate=startDate,endDate=endDate)
 
-
-
 #pig.pcg(app=sys.argv[1],startDate=sys.argv[2],endDate=sys.argv[3])
