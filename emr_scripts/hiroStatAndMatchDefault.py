@@ -1,10 +1,4 @@
-class seid(object):        
-    #def __init__(self,client,ticket):
-
-        #self.client = client
-        #self.ticket = ticket
-        #self.s3Location = "s3n://ds-emr-storage/jira/seid/%s_%s" % (ticket, client)
-        #self.client_file = "%s/match_file/" % (self.s3Location)
+class seid(object):
     def __init__(self,clientFile,ticket):
 
         self.clientFile = clientFile
@@ -114,7 +108,7 @@ class seid(object):
 
         # Generate match file #
 
-        match_floc = "%s/match_test/standard_match/lidid_%s_maid_%s/" \
+        match_floc = "%s/match_test/standard_match/L%sM%s/" \
         % (self.s3Location, maxLididDate, maxSellableDate)
         
         client \
@@ -124,4 +118,3 @@ class seid(object):
             .distinct() \
             .write \
             .parquet(match_floc)
- 
