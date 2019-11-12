@@ -1,6 +1,13 @@
+import sys
+
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
+
+
 class defaultTest(object):
+
+
     def __init__(self,clientFile,ticket,hem="md5"):
-        import sys
 
         self.clientFile = clientFile
         self.s3Location = "s3n://ds-emr-storage/jira/seid/%s" % (ticket)
@@ -9,18 +16,14 @@ class defaultTest(object):
         print("""File to be analyzed: %s \n""" %(self.clientFile))
 
         if (hem == "sha1") | (hem == "sha2"):
-
             self.hem = hem
             self.hem_transformation()
             self.convertedClientFile = """%s/tmpMd5/""" %(self.s3Location)
             self.useCovertedFile = True
-
         elif hem != "md5":
             sys.exit("""Invalid type given. Expected valid options: [md5,sha1,sha2]""")
 
     def stat_test(self):
-        from pyspark.sql import SparkSession
-        from pyspark.sql.functions import countDistinct, col, when, isnull, count, sum
 
         spark = SparkSession.builder \
             .appName("stat_test") \
@@ -43,7 +46,7 @@ class defaultTest(object):
         sellableInit = spark.sql("""SELECT piiidentifier as hem, cookie_domain_p as cDomain, COUNT(*) pairs, 
                         COUNT(CASE WHEN region_p = 'US' THEN region_p END) us_pairs 
                         FROM auto_sellable.sellable_pair 
-                        WHERE date_p = '%s' GROU        P BY 1,2""" % (maxSellableDate))
+                        WHERE date_p = '%s' GROUP BY 1,2""" % (maxSellableDate))
 
         print(""" === Contents of Client HEM File ===
         This test verifies the content of the original client file by searching for standard
@@ -51,13 +54,13 @@ class defaultTest(object):
         if the format is correct. It is not possible to evaluate if the input to create 
         the hem was correct.\n""")
 
-        client.withColumn("hType",when(col("hem").rlike("^[a-f0-9]{32}$"),"md5") \
-                    .when(col("hem").rlike("^[a-f0-9]{40}$"),"sh1") \
-                    .when(col("hem").rlike("^[a-f0-9]{64}$"),"sh2") \
+        client.withColumn("hType",F.when(F.col("hem").rlike("^[a-f0-9]{32}$"),"md5") \
+                    .when(F.col("hem").rlike("^[a-f0-9]{40}$"),"sh1") \
+                    .when(F.col("hem").rlike("^[a-f0-9]{64}$"),"sh2") \
                           .otherwise("invalid")) \
-            .groupBy(col("hType")) \
-            .agg(count(col("hem")).alias("ct_hem"),
-                 countDistinct(col("hem")).alias("ctD_hem")) \
+            .groupBy(F.col("hType")) \
+            .agg(F.count(F.col("hem")).alias("ct_hem"),
+                 F.countDistinct(F.col("hem")).alias("ctD_hem")) \
             .show()
 
         if self.useCovertedFile:
@@ -67,13 +70,13 @@ class defaultTest(object):
             clientConverted = spark.read.csv(self.convertedClientFile) \
                                     .withColumnRenamed("_c0","hem")
 
-            clientConverted.withColumn("hType", when(col("hem").rlike("^[a-f0-9]{32}$"), "md5") \
-                              .when(col("hem").rlike("^[a-f0-9]{40}$"), "sh1") \
-                              .when(col("hem").rlike("^[a-f0-9]{64}$"), "sh2") \
+            clientConverted.withColumn("hType", F.when(F.col("hem").rlike("^[a-f0-9]{32}$"), "md5") \
+                              .when(F.col("hem").rlike("^[a-f0-9]{40}$"), "sh1") \
+                              .when(F.col("hem").rlike("^[a-f0-9]{64}$"), "sh2") \
                               .otherwise("invalid")) \
-                .groupBy(col("hType")) \
-                .agg(count(col("hem")).alias("ct_hem"),
-                     countDistinct(col("hem")).alias("ctD_hem")) \
+                .groupBy(F.col("hType")) \
+                .agg(F.count(F.col("hem")).alias("ct_hem"),
+                     F.countDistinct(F.col("hem")).alias("ctD_hem")) \
                 .show()
 
             sellableHash = sellableInit.join(clientConverted, on="hem", how="inner")
@@ -88,8 +91,8 @@ class defaultTest(object):
         are located in the USA.\n""")
 
         sellableHash \
-            .agg(countDistinct(sellableHash.hem).alias("matchedHems"),
-                 countDistinct(when(sellableHash.us_pairs > 0, sellableHash.hem)).alias("""matchedHems (US only)""")) \
+            .agg(F.countDistinct(sellableHash.hem).alias("matchedHems"),
+                 F.countDistinct(F.when(sellableHash.us_pairs > 0, sellableHash.hem)).alias("""matchedHems (US only)""")) \
             .show()
 
         print("""=== Cookie Domain Breakdown  ===
@@ -102,17 +105,15 @@ class defaultTest(object):
 
         sellableHash \
             .join(domainNames, sellableHash.cDomain == domainNames.id, how="left") \
-            .groupBy(col("cDomain"),col("cDomainName")) \
-            .agg(countDistinct(when(sellableHash.us_pairs > 0, sellableHash.hem)).alias("""matchedHems (US only)"""),
-                 sum("us_pairs").alias("Pairs (US only)")) \
+            .groupBy(F.col("cDomain"),F.col("cDomainName")) \
+            .agg(F.countDistinct(F.when(sellableHash.us_pairs > 0, sellableHash.hem)).alias("""matchedHems (US only)"""),
+                 F.sum("us_pairs").alias("Pairs (US only)")) \
             .orderBy("Pairs (US only)", ascending=False) \
             .show(50)
         
         sellableHash.unpersist()
 
     def match_test(self):
-        from pyspark.sql import SparkSession
-        from pyspark.sql.functions import isnull
 
         spark = SparkSession.builder \
             .appName("match_test") \
@@ -160,8 +161,6 @@ class defaultTest(object):
             .parquet(match_floc)
 
     def hem_transformation(self):
-        from pyspark.sql import SparkSession
-        import sys
 
         spark = SparkSession.builder \
             .appName("hem_lookup") \
@@ -175,10 +174,7 @@ class defaultTest(object):
         maxHemLookupDate = spark.sql("""SELECT MAX(date_p) FROM auto_mappings.consolidated_email_hash""") \
                                 .collect()[0][0]
 
-        if self.hem == "sha1":
-            joinCol = "sh1"
-        elif self.hem == "sha2":
-            joinCol = "sh2"
+        joinCol = self.hem.replace("a", "")
 
         print("""--- HEM TRANSFORMATION ---
         Converting %s to md5....
@@ -191,8 +187,10 @@ class defaultTest(object):
                         FROM auto_mappings.consolidated_email_hash 
                         WHERE date_p = '%s'""" %(joinCol,maxHemLookupDate))
 
-        hemLookup.join(client, join=joinCol, how="inner") \
+        hemLookup.join(client, on=joinCol, how="inner") \
                 .select(hemLookup.md5) \
                 .distinct() \
                 .write \
                 .csv("""%s/tmpMd5/""" %(self.s3Location), mode="overwrite")
+
+        print("""Conversion complete! \n""")

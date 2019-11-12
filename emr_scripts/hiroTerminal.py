@@ -19,7 +19,7 @@ else:
     ticket = 'noTicket_%s' %(timeId)
 
 if args.htype:
-    htype = args.hytpe
+    htype = args.htype
 else:
     htype = 'md5'
 
