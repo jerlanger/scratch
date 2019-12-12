@@ -40,19 +40,19 @@ class defaultTest(object):
         client = spark.read.csv(self.clientFile) \
             .withColumnRenamed("_c0","hem")
 
-        print("""--- STAT TEST --- 
-        Date of LiveIntent's most recent dataset: %s \n""" %(maxSellableDate))
+        print("--- STAT TEST ---\n"
+              "Date of LiveIntent's most recent dataset: %s \n" %(maxSellableDate))
 
         sellableInit = spark.sql("""SELECT piiidentifier as hem, cookie_domain_p as cDomain, COUNT(*) pairs, 
                         COUNT(CASE WHEN region_p = 'US' THEN region_p END) us_pairs 
                         FROM auto_sellable.sellable_pair 
                         WHERE date_p = '%s' GROUP BY 1,2""" % (maxSellableDate))
 
-        print(""" === Contents of Client HEM File ===
-        This test verifies the content of the original client file by searching for standard
-        input formats (MD5,SH1,SH2). However, please note that it is only possible to evaluate
-        if the format is correct. It is not possible to evaluate if the input to create 
-        the hem was correct.\n""")
+        print("=== Contents of Client HEM File ===\n"
+              "This test verifies the content of the original client file by searching for standard\n"
+              "input formats (MD5,SH1,SH2). However, please note that it is only possible to evaluate\n"
+              "if the format is correct. It is not possible to evaluate if the input to create\n"
+              "the hem was correct.\n")
 
         client.withColumn("hType",F.when(F.col("hem").rlike("^[a-f0-9]{32}$"),"md5") \
                     .when(F.col("hem").rlike("^[a-f0-9]{40}$"),"sh1") \
@@ -64,8 +64,8 @@ class defaultTest(object):
             .show()
 
         if self.useCovertedFile:
-            print("""If you converted the file, the following is the breakdown of the generated
-            conversion file. THIS FILE WILL BE USED FOR THE STAT TEST. \n""")
+            print("If you converted the file, the following is the breakdown of the generated\n"
+                  "conversion file. THIS FILE WILL BE USED FOR THE STAT TEST.\n")
 
             clientConverted = spark.read.csv(self.convertedClientFile) \
                                     .withColumnRenamed("_c0","hem")
@@ -85,20 +85,20 @@ class defaultTest(object):
 
         sellableHash.cache()
 
-        print("""=== Number of Matched Hashes to Sellable Dataset ===
-        This test informs the hem overlap between the client and LiveIntent's most
-        recent sellable dataset. The last column narrows the matches to only hems that
-        are located in the USA.\n""")
+        print("=== Number of Matched Hashes to Sellable Dataset ===\n"
+              "This test informs the hem overlap between the client and LiveIntent's most\n"
+              "recent sellable dataset. The last column narrows the matches to only hems that\n"
+              "are located in the USA.\n")
 
         sellableHash \
             .agg(F.countDistinct(sellableHash.hem).alias("matchedHems"),
                  F.countDistinct(F.when(sellableHash.us_pairs > 0, sellableHash.hem)).alias("""matchedHems (US only)""")) \
             .show()
 
-        print("""=== Cookie Domain Breakdown  ===
-        The number of client hems and potential pairs for each cookie domain
-        located in the most recent sellable dataset. Sorted by number of pairs. 
-        Only a maximum of 50 domains will be shown.\n""")
+        print("=== Cookie Domain Breakdown  ===\n"
+              "The number of client hems and potential pairs for each cookie domain\n"
+              "located in the most recent sellable dataset. Sorted by number of pairs.\n"
+              "Only a maximum of 50 domains will be shown.\n")
 
         domainNames = spark.sql("""SELECT pub_or_app_id as id, name as cDomainName
                                     FROM default.sellable_domain_names""")
@@ -126,39 +126,34 @@ class defaultTest(object):
 
         maxSellableDate = spark.sql("""SELECT MAX(date_p) FROM auto_sellable.sellable_pair""") \
                                  .collect()[0][0]
-
         maxLididDate = spark.sql("""SELECT MAX(date_p) FROM auto_dmps.all_features_mapping_pair""") \
                                  .collect()[0][0]
 
         # Create temp tables #
 
-        if self.useCovertedFile:
-            client = spark.read.csv(self.convertedClientFile) \
-                                    .withColumnRenamed("_c0","hem")
-        else:
-            client = spark.read.csv(self.client_file) \
-                                    .withColumnRenamed("_c0","hem")
-        
-        lidid = spark.sql("""SELECT hash as hem FROM auto_dmps.all_features_mapping_pair 
-                     WHERE identifier RLIKE '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' 
-                     AND date_p = '%s' GROUP BY 1"""  % (maxLididDate))
-        
         maid = spark.sql("""SELECT piiidentifier as hem FROM auto_sellable.sellable_pair 
                     WHERE cookie_domain_p IN ('aaid','idfa') 
-                    AND date_p = '%s' GROUP BY 1""" % (maxSellableDate))
+                    AND date_p = '%s'""" % (maxSellableDate))
+        lidid = spark.sql("""SELECT hash as hem FROM auto_dmps.all_features_mapping_pair 
+                     WHERE identifier RLIKE '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' 
+                     AND date_p = '%s'""" % (maxLididDate))
+
+        if self.useCovertedFile:
+            client = spark.read.csv(self.convertedClientFile) \
+                                    .withColumnRenamed("_c0", "hem")
+        else:
+            client = spark.read.csv(self.client_file) \
+                                    .withColumnRenamed("_c0", "hem")
 
         # Generate match file #
-
-        match_floc = "%s/match_test/standard_match/L%sM%s/" \
-        % (self.s3Location, maxLididDate, maxSellableDate)
         
         client \
-            .join(lidid,client.hem == lidid.hem, "left") \
-            .join(maid,client.hem == maid.hem, "left") \
-            .select(client.hem, lidid.hem.isNotNull().alias("has_lidid"), maid.hem.isNotNull().alias("has_maid")) \
+            .join(lidid, client.hem == lidid.hem, "left") \
+            .join(maid, client.hem == maid.hem, "left") \
+            .select(client.hem, lidid.hem.isNotNull().alias("hasLIDID"), maid.hem.isNotNull().alias("hasMAID")) \
             .distinct() \
             .write \
-            .parquet(match_floc)
+            .csv("%s/match_test/standard_match/L%sM%s/" % (self.s3Location, maxLididDate, maxSellableDate))
 
     def hem_transformation(self):
 
@@ -176,16 +171,16 @@ class defaultTest(object):
 
         joinCol = self.hem.replace("a", "")
 
-        print("""--- HEM TRANSFORMATION ---
-        Converting %s to md5....
-        Using consolidated email hash from %s""" % (self.hem,maxHemLookupDate))
+        print("--- HEM TRANSFORMATION ---\n"
+              "Converting %s to md5....\n"
+              "Using consolidated email hash dataset from %s\n" % (self.hem, maxHemLookupDate))
 
         client = spark.read.csv(self.clientFile) \
             .withColumnRenamed("_c0",joinCol)
 
         hemLookup = spark.sql("""SELECT md5, %s 
                         FROM auto_mappings.consolidated_email_hash 
-                        WHERE date_p = '%s'""" %(joinCol,maxHemLookupDate))
+                        WHERE date_p = '%s'""" %(joinCol, maxHemLookupDate))
 
         hemLookup.join(client, on=joinCol, how="inner") \
                 .select(hemLookup.md5) \
@@ -193,4 +188,4 @@ class defaultTest(object):
                 .write \
                 .csv("""%s/tmpMd5/""" %(self.s3Location), mode="overwrite")
 
-        print("""Conversion complete! \n""")
+        print("""Conversion complete!\n""")
