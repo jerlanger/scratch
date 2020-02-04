@@ -46,7 +46,7 @@ class ClusterValidation:
 
         self.inputFile = spark.read.csv(s3loc, sep=sep)
 
-        if len(inputFile.columns) != 2:
+        if len(self.inputFile.columns) != 2:
             sys.exit("""Input cluster file has incorrect schema. Expected 2 columns. File has {}""".format(
                 len(self.inputFile.columns)))
         else:
