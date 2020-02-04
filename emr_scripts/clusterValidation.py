@@ -19,20 +19,20 @@ class GenericValidation:
             .getOrCreate()
 
         spark.catalog.setCurrentDatabase("default")
-        clientFile = spark.read.csv(s3loc, sep=sep)
+        self.clientFile = spark.read.csv(s3loc, sep=sep)
 
         print("Generic File Validation \n ")
         print("===Description===")
         print("Location: %s \n") % (s3loc)
         print("File Schema")
-        clientFile.printSchema()
+        self.clientFile.printSchema()
         print("Example Rows")
-        clientFile.show(n=5, truncate=False)
+        self.clientFile.show(n=5)
         print("===Statistics=== \nRows in File")
-        print(clientFile.count())
+        print(self.clientFile.count())
         print("")
         print("CountDistinct by Column")
-        clientFile.agg(*(f.countDistinct(f.col(c)).alias(c) for c in ClientFile.columns)).show()
+        self.clientFile.agg(*(f.countDistinct(f.col(c)).alias(c) for c in self.clientFile.columns)).show()
 
 
 class ClusterValidation:
