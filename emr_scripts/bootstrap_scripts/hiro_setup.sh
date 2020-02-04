@@ -5,7 +5,8 @@ sudo pip install -U \
 	 pandas \
 	 numpy \
 	 awscli \
-	 boto3
+	 boto3 \
+	 tabulate
 
 sudo yum install -y tmux
 
