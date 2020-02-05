@@ -1,8 +1,9 @@
+
 import argparse
 import sys
+from tabulate import tabulate
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as f
-from tabulate import tabulate
 
 
 class GenericValidation:
@@ -50,9 +51,7 @@ class ClusterValidation:
             sys.exit("""Input cluster file has incorrect schema. Expected 2 columns. File has {}""".format(
                 len(self.inputFile.columns)))
         else:
-            print("""Location: {}""".format(s3loc))
-
-        self.get_domains()
+            print("""Cluster File Validation \n Location: {}""".format(s3loc))
 
     def get_domains(self):
 
@@ -66,21 +65,24 @@ class ClusterValidation:
         if len(inputDomains) > 1:
             self.domain_distribution()
 
-    # to do: come up with solution to do aaid + idfa counts, preferably within the existin framework #
-
         maidCounter = 0
-
         for r in inputDomains:
             if r.cookieDomain in ["aaid", "idfa"]:
                 maidCounter += 1
-
             self.domain_distribution(cookieDomain=r.cookieDomain)
 
-    def domain_distribution(self, cookieDomain=None):
+        if maidCounter == 2:
+            self.domain_distribution(cookieDomain="MAID ALL")
 
-        if cookieDomain is None:
+        print("Done!")
+
+    def domain_distribution(self, cookieDomain="ALL"):
+
+        if cookieDomain == "ALL":
             domainClusters = self.inputFile.withColumn("partnerIds", f.size(f.split(f.col("_c1"), "\|")))
-            cookieDomain = "ALL"
+        elif cookieDomain == "MAID ALL":
+            domainClusters = self.inputFile.filter(f.col("_c1").rlike("(idfa|aaid):")) \
+                .withColumn("partnerIds", f.size(f.split(f.col("_c1"), "(idfa|aaid):")) - 1)
         else:
             domainClusters = self.inputFile.filter(f.col("_c1").like("%{}:%".format(cookieDomain))) \
                 .withColumn("partnerIds", f.size(f.split(f.col("_c1"), "{}:".format(cookieDomain))) - 1)
@@ -89,7 +91,7 @@ class ClusterValidation:
         dcAvg = domainClusters.agg(f.avg("partnerIds")).collect()[0][0]
         dcQuant = domainClusters.approxQuantile("partnerIds", [0.0, 0.25, 0.5, 0.75, 1.0], 0.05)
 
-        print("""=== Cookie Domain Statistics: {} ===\nTotal clusters: {:,.0f}\n
+        print("""=== Cookie Domain Statistics: {} ===\n\nTotal clusters: {:,.0f}\n
         Distribution (5% margin of error)\n""".format(cookieDomain, dcCount))
 
         print(tabulate(
@@ -98,6 +100,7 @@ class ClusterValidation:
             headers=["Metric", "Partner IDs in Cluster"],
             tablefmt="presto"))
         print("\n---")
+        print(" ")
 
 
 if __name__ == '__main__':
@@ -129,6 +132,7 @@ if __name__ == '__main__':
 
     if test == "cluster-distribution":
         run = ClusterValidation(s3loc=s3loc, sep=sep)
+        run.get_domains()
     elif test == "generic":
         run = GenericValidation(s3loc=s3loc, sep=sep)
     else:
