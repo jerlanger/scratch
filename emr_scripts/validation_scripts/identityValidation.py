@@ -51,7 +51,7 @@ class ClusterValidation:
             sys.exit("""Input cluster file has incorrect schema. Expected 2 columns. File has {}""".format(
                 len(self.inputFile.columns)))
         else:
-            print("""Cluster File Validation \n Location: {}""".format(s3loc))
+            print("""Cluster File Validation\nLocation: {}\n """.format(s3loc))
 
     def get_domains(self):
 
