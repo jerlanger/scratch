@@ -8,9 +8,6 @@ import pyspark.sql.functions as f
 class GenericValidation:
 
     def __init__(self, s3loc, sep="\t"):
-        from pyspark.sql import SparkSession
-        import pyspark.sql.functions as f
-
         spark = SparkSession.builder \
             .appName("GenericValidation") \
             .config("hive.metastore.client.factory.class",
@@ -113,6 +110,8 @@ class ClusterValidation:
         if self.resultsMaid:
             for r in self.resultsMaid:
                 self.build_table(tableRow=r)
+
+        print("End of report!")
 
 
 if __name__ == '__main__':
