@@ -1,4 +1,3 @@
-
 import argparse
 import sys
 from tabulate import tabulate
@@ -39,68 +38,81 @@ class GenericValidation:
 class ClusterValidation:
 
     def __init__(self, s3loc, sep="\t"):
-
         spark = SparkSession.builder \
             .appName("ClusterValidation") \
             .enableHiveSupport() \
             .getOrCreate()
 
+        self.s3loc = s3loc
         self.inputFile = spark.read.csv(s3loc, sep=sep)
+
+        self.validate_file()
+
+    def validate_file(self):
+        print("""=== Cluster File Validation ===\nLocation: {}\n""".format(self.s3loc))
 
         if len(self.inputFile.columns) != 2:
             sys.exit("""Input cluster file has incorrect schema. Expected 2 columns. File has {}""".format(
                 len(self.inputFile.columns)))
         else:
-            print("""Cluster File Validation\nLocation: {}\n """.format(s3loc))
+            print("File is valid!")
 
-    def get_domains(self):
+    def build_sub_aggregate(self):
+        self.subagg = self.inputFile.withColumn("ds", f.explode(f.split(f.col("_c1"), "\|"))) \
+            .withColumn("cookieDomain", f.regexp_extract("ds", "^([^:]+)", 1)) \
+            .groupBy("_c0", "cookieDomain") \
+            .agg(f.count("*").alias("partnerIds"))
 
-        inputDomains = self.inputFile.withColumn("dSplit", f.explode(f.split(f.col("_c1"), "\|"))) \
-            .withColumn("cookieDomain", f.regexp_extract(f.col("dSplit"), "^([^:]+)", 1)) \
-            .select("cookieDomain") \
-            .distinct() \
-            .orderBy("cookieDomain") \
-            .collect()
+    def calculate_distribution(self):
+        column = "partnerIDs"
 
-        if len(inputDomains) > 1:
-            self.domain_distribution()
+        count = f.count("*").alias("ct_cluster")
+        percentiles = f.expr("percentile_approx({}, array(0.0,0.25,0.5,0.75,1.0), 100)".format(column)).alias("ntile")
+        mean = f.round(f.avg("{}".format(column)), 1).alias("mean")
+
+        resultsTotal = self.subagg.groupBy(f.lit("ALL").alias("cookieDomain")).agg(count, mean, percentiles)
+        resultsDomain = self.subagg.groupBy("cookieDomain").agg(count, mean, percentiles).orderBy("cookieDomain")
+
+        self.results = resultsTotal.union(resultsDomain).collect()
 
         maidCounter = 0
-        for r in inputDomains:
+        for r in self.results:
             if r.cookieDomain in ["aaid", "idfa"]:
                 maidCounter += 1
-            self.domain_distribution(cookieDomain=r.cookieDomain)
 
         if maidCounter == 2:
-            self.domain_distribution(cookieDomain="MAID ALL")
+            self.resultsMaid = self.subagg.filter("cookieDomain in ('aaid','idfa')") \
+                .groupBy(f.lit("MAID ALL").alias("cookieDomain")) \
+                .agg(count, mean, percentiles) \
+                .collect()
 
-        print("Done!")
-
-    def domain_distribution(self, cookieDomain="ALL"):
-
-        if cookieDomain == "ALL":
-            domainClusters = self.inputFile.withColumn("partnerIds", f.size(f.split(f.col("_c1"), "\|")))
-        elif cookieDomain == "MAID ALL":
-            domainClusters = self.inputFile.filter(f.col("_c1").rlike("(idfa|aaid):")) \
-                .withColumn("partnerIds", f.size(f.split(f.col("_c1"), "(idfa|aaid):")) - 1)
-        else:
-            domainClusters = self.inputFile.filter(f.col("_c1").like("%{}:%".format(cookieDomain))) \
-                .withColumn("partnerIds", f.size(f.split(f.col("_c1"), "{}:".format(cookieDomain))) - 1)
-
-        dcCount = domainClusters.count()
-        dcAvg = domainClusters.agg(f.avg("partnerIds")).collect()[0][0]
-        dcQuant = domainClusters.approxQuantile("partnerIds", [0.0, 0.25, 0.5, 0.75, 1.0], 0.05)
-
+    @staticmethod
+    def build_table(tableRow):
         print("""=== Cookie Domain Statistics: {} ===\n\nTotal clusters: {:,.0f}\n
-        Distribution (5% margin of error)\n""".format(cookieDomain, dcCount))
+        Distribution (1% margin of error)\n""".format(tableRow.cookieDomain, tableRow.ct_cluster))
 
         print(tabulate(
-            [["Minimum", dcQuant[0]], ["25th Percentile", dcQuant[1]], ["Median", dcQuant[2]], ["Mean", round(dcAvg)],
-             ["75th Percentile", dcQuant[3]], ["Maximum", dcQuant[4]]],
+            [["Minimum", tableRow.ntile[0]],
+             ["25th Percentile", tableRow.ntile[1]],
+             ["Median", tableRow.ntile[2]],
+             ["Mean", tableRow.mean],
+             ["75th Percentile", tableRow.ntile[3]],
+             ["Maximum", tableRow.ntile[4]]],
             headers=["Metric", "Partner IDs in Cluster"],
             tablefmt="presto"))
         print("\n---")
         print(" ")
+
+    def build_distribution_report(self):
+        self.build_sub_aggregate()
+        self.calculate_distribution()
+
+        for r in self.results:
+            self.build_table(tableRow=r)
+
+        if self.resultsMaid:
+            for r in self.resultsMaid:
+                self.build_table(tableRow=r)
 
 
 if __name__ == '__main__':
@@ -132,7 +144,7 @@ if __name__ == '__main__':
 
     if test == "cluster-distribution":
         run = ClusterValidation(s3loc=s3loc, sep=sep)
-        run.get_domains()
+        run.build_distribution_report()
     elif test == "generic":
         run = GenericValidation(s3loc=s3loc, sep=sep)
     else:
