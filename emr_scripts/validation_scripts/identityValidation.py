@@ -64,10 +64,11 @@ class ClusterValidation:
         column = "partnerIDs"
 
         count = f.count("*").alias("ct_cluster")
+        countD = f.countDistinct("_c0").alias("ct_cluster")
         percentiles = f.expr("percentile_approx({}, array(0.0,0.25,0.5,0.75,1.0), 100)".format(column)).alias("ntile")
         mean = f.round(f.avg("{}".format(column)), 1).alias("mean")
 
-        resultsTotal = self.subagg.groupBy(f.lit("ALL").alias("cookieDomain")).agg(count, mean, percentiles)
+        resultsTotal = self.subagg.groupBy(f.lit("ALL").alias("cookieDomain")).agg(countD, mean, percentiles)
         resultsDomain = self.subagg.groupBy("cookieDomain").agg(count, mean, percentiles).orderBy("cookieDomain")
 
         self.results = resultsTotal.union(resultsDomain).collect()
@@ -80,7 +81,7 @@ class ClusterValidation:
         if maidCounter == 2:
             self.resultsMaid = self.subagg.filter("cookieDomain in ('aaid','idfa')") \
                 .groupBy(f.lit("MAID ALL").alias("cookieDomain")) \
-                .agg(count, mean, percentiles) \
+                .agg(countD, mean, percentiles) \
                 .collect()
 
     @staticmethod
