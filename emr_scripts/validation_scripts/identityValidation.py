@@ -220,7 +220,7 @@ class ClusterValidation:
         print("\n---")
         print(" ")
 
-    def build_distribution_report(self):
+    def build_distribution_report(self):3
         self.calculate_distribution(rType="cluster")
         self.calculate_distribution(rType="cookie")
 
