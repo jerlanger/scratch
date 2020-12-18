@@ -44,15 +44,16 @@ class StatsAA:
                         .when(f.col("daysSince") <= 180, 180)
                         .otherwise(181))
 
-        self.imp_date_check(dataset=rawImps)
+        #self.imp_date_check(dataset=rawImps)
         self.filterImps = rawImps.join(self.AAEmail, on="md5", how="inner").cache()
 
-    @staticmethod
-    def imp_date_check(dataset=None):
+    def imp_date_check(self, dataset=None):
 
         if dataset is not None:
             dataset.groupBy("date_part")\
-                .agg(f.countDistinct("daysSince").alias("dates")).show()
+                .agg(f.countDistinct("daysSince").alias("dates"))\
+                .write\
+                .csv("s3://ds-emr-storage/jira/AAReturn/%s/imp_date_check/" % (self.runDate), mode="overwrite")
 
     def hash_match_counts(self):
 
@@ -64,7 +65,7 @@ class StatsAA:
                  f.sum(f.when(f.col("date_part") <= 90, 1)).alias("ct_90"),
                  f.sum(f.when(f.col("date_part") <= 180, 1)).alias("ct_180"))\
             .coalesce(1000)\
-            .write.csv("s3://ds-emr-storage/jira/AAReturn/%s/hash_match_counts/" % self.runDate, mode="overwrite")
+            .write.csv("s3://ds-emr-storage/jira/AAReturn/%s/hash_match_counts/" % (self.runDate), mode="overwrite")
 
     def user_agent_counts(self):
 
@@ -74,7 +75,7 @@ class StatsAA:
             .groupBy("md5", "ip", "dev_type", "dev_maker", "nbrowser", "os")\
             .agg(f.count("*").alias("ct_45"))\
             .coalesce(1000)\
-            .write.csv("s3://ds-emr-storage/jira/AAReturn/%s/user_agent_counts/" % self.runDate, mode="overwrite")
+            .write.csv("s3://ds-emr-storage/jira/AAReturn/%s/user_agent_counts/" % (self.runDate), mode="overwrite")
 
     def iab_category_counts(self):
 
@@ -84,7 +85,7 @@ class StatsAA:
             .groupBy("md5", "category_id")\
             .agg(f.count("*").alias("ct_45"))\
             .coalesce(1000)\
-            .write.csv("s3://ds-emr-storage/jira/AAReturn/%s/iab_category_counts/" % self.runDate, mode="overwrite")
+            .write.csv("s3://ds-emr-storage/jira/AAReturn/%s/iab_category_counts/" % (self.runDate), mode="overwrite")
 
     def full_run(self):
 
